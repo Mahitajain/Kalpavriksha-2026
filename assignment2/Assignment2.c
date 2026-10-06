@@ -7,9 +7,9 @@
 
 struct User
 {
-    int id;
+    unsigned int id;
     char name[NAME_SIZE];
-    int age;
+    unsigned short age;
 };
 
 struct User users[MAX_USERS];
@@ -38,10 +38,10 @@ void loadUsers()
 
     while (userCount < MAX_USERS)
     {
-        if (fscanf(file, "%d %49s %d",
+        if (fscanf(file, "%u %hu %49[^\n]",
                    &users[userCount].id,
-                   users[userCount].name,
-                   &users[userCount].age) != 3)
+                   &users[userCount].age,
+                   users[userCount].name) != 3)
         {
             break;
         }
@@ -55,7 +55,6 @@ void loadUsers()
 void saveUsers()
 {
     FILE *file;
-    int i;
 
     file = fopen(FILE_NAME, "w");
 
@@ -65,22 +64,20 @@ void saveUsers()
         return;
     }
 
-    for (i = 0; i < userCount; i++)
+    for (int i = 0; i < userCount; i++)
     {
-        fprintf(file, "%d %s %d\n",
+        fprintf(file, "%u %hu %s\n",
                 users[i].id,
-                users[i].name,
-                users[i].age);
+                users[i].age,
+                users[i].name);
     }
 
     fclose(file);
 }
 
-int findUser(int id)
+int findUser(unsigned int id)
 {
-    int i;
-
-    for (i = 0; i < userCount; i++)
+    for (int i = 0; i < userCount; i++)
     {
         if (users[i].id == id)
             return i;
@@ -111,24 +108,35 @@ int getNumber(char message[])
         result = scanf("%d", &number);
     }
 
+    while ((ch = getchar()) != '\n' && ch != EOF)
+    {
+    }
+
     return number;
 }
 
 void getName(char name[])
 {
-    printf("Enter name: ");
-    scanf("%49s", name);
+    do
+    {
+        printf("Enter name: ");
+
+        if (fgets(name, NAME_SIZE, stdin) == NULL)
+            name[0] = '\0';
+
+        name[strcspn(name, "\n")] = '\0';
+    } while (name[0] == '\0');
 }
 
 void createUser()
 {
-    struct User newUser;
-
     if (userCount >= MAX_USERS)
     {
         printf("Storage is full.\n");
         return;
     }
+
+    struct User newUser;
 
     newUser.id = getNumber("Enter ID: ");
 
@@ -152,8 +160,6 @@ void createUser()
 
 void showUsers()
 {
-    int i;
-
     if (userCount == 0)
     {
         printf("No users found.\n");
@@ -162,9 +168,9 @@ void showUsers()
 
     printf("\nID\tName\t\tAge\n");
 
-    for (i = 0; i < userCount; i++)
+    for (int i = 0; i < userCount; i++)
     {
-        printf("%d\t%-15s%d\n",
+        printf("%u\t%-15s%hu\n",
                users[i].id,
                users[i].name,
                users[i].age);
