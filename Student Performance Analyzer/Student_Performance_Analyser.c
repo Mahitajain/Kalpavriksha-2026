@@ -61,6 +61,51 @@ int getStars(char grade){
     }
 }
 
+int inputStudentDetails(struct Student *student, unsigned int studentIndex){
+    printf("\nEnter details for student %u:\n", studentIndex + 1);
+
+    scanf("%u %49s %hu %hu %hu",&student->roll,student->name,&student->marks1,&student->marks2,&student->marks3);
+
+    if (student->marks1 > 100 || student->marks2 > 100 || student->marks3 > 100){
+        printf("Marks should be between 0 and 100.\n");
+        return 0;
+    }
+
+    return 1;
+}
+
+void displayStudentDetails(struct Student student){
+    unsigned int total;
+    float average;
+    char grade;
+
+    total = calculateTotal(student);
+    average = calculateAverage(total);
+    grade = calculateGrade(average);
+
+    printf("Roll: %u\n", student.roll);
+    printf("Name: %s\n", student.name);
+    printf("Total: %u\n", total);
+    printf("Average: %.2f\n", average);
+    printf("Grade: %c\n", grade);
+
+    if (grade == 'F'){
+        return;
+    }
+
+    int stars;
+
+    stars = getStars(grade);
+
+    printf("Performance: ");
+
+    for (int starIndex = 0; starIndex < stars; starIndex++){
+        printf("*");
+    }
+
+    printf("\n");
+}
+
 void printRollNumbers(struct Student students[], unsigned int studentCount, unsigned int index){
     if (index >= studentCount){
         return;
@@ -88,49 +133,16 @@ int main(){
 
     struct Student students[MAX_STUDENTS];
 
-    for (unsigned int i = 0; i < studentCount; i++){
-        printf("\nEnter details for student %u:\n", i + 1);
-
-        scanf("%u %49s %hu %hu %hu",&students[i].roll,students[i].name,&students[i].marks1,&students[i].marks2,&students[i].marks3);
-
-        if (students[i].marks1 > 100 || students[i].marks2 > 100 || students[i].marks3 > 100){
-            printf("Marks should be between 0 and 100.\n");
+    for (unsigned int studentIndex = 0; studentIndex < studentCount; studentIndex++){
+        if (!inputStudentDetails(&students[studentIndex], studentIndex)){
             return 1;
         }
     }
 
     printf("\n");
 
-    for (unsigned int i = 0; i < studentCount; i++){
-        unsigned int total;
-        float average;
-        char grade;
-
-        total = calculateTotal(students[i]);
-        average = calculateAverage(total);
-        grade = calculateGrade(average);
-
-        printf("Roll: %u\n", students[i].roll);
-        printf("Name: %s\n", students[i].name);
-        printf("Total: %u\n", total);
-        printf("Average: %.2f\n", average);
-        printf("Grade: %c\n", grade);
-
-        if (grade == 'F'){
-            continue;
-        }
-
-        int stars;
-
-        stars = getStars(grade);
-
-        printf("Performance: ");
-
-        for (int j = 0; j < stars; j++){
-            printf("*");
-        }
-
-        printf("\n");
+    for (unsigned int studentIndex = 0; studentIndex < studentCount; studentIndex++){
+        displayStudentDetails(students[studentIndex]);
     }
 
     printf("List of Roll Numbers (via recursion): ");
