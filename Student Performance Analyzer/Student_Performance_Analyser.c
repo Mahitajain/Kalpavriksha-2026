@@ -3,6 +3,7 @@
 #define MAX_STUDENTS 100
 #define NAME_SIZE 50
 #define SUBJECTS 3
+#define MAX_MARKS 100
 
 #define GRADE_A 85
 #define GRADE_B 70
@@ -67,8 +68,8 @@ int inputStudentDetails(struct Student *student, unsigned int studentIndex){
     scanf("%u %49s %hu %hu %hu",&student->roll,student->name,&student->marks1,&student->marks2,&student->marks3);
 
     if (student->marks1 > 100 || student->marks2 > 100 || student->marks3 > 100){
-        printf("Marks should be between 0 and 100.\n");
-        return 0;
+    printf("Marks should be between 0 and 100.\n");
+    return 0;
     }
 
     return 1;
