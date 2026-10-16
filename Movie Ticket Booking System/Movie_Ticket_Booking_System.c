@@ -1,6 +1,9 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <ctype.h>
 
 #define NAME_SIZE 50
 #define MIN_TICKETS 1
@@ -29,6 +32,9 @@ struct BookingBill {
 
 // Reads the customer's name
 int getCustomerName(char customerName[]) {
+    int ch;
+    size_t length;
+
     printf("Enter customer name: ");
 
     if (fgets(customerName, NAME_SIZE, stdin) == NULL) {
@@ -36,18 +42,14 @@ int getCustomerName(char customerName[]) {
         return 0;
     }
 
-    // Remove the newline added by fgets
-    customerName[strcspn(customerName, "\n")] = '\0';
+    length = strcspn(customerName, "\n");
+    // printf("Debug: length = %zu\n", length);
+    // printf("Debug: character at length = %d\n",
+    //    (unsigned char)customerName[length]);
 
-    if (customerName[0] == '\0') {
-        printf("Customer name cannot be empty.\n");
-        return 0;
-    }
-
-    // Check whether the complete name fits in the input buffer
-    if (strchr(customerName, '\n') == NULL &&
-        !feof(stdin)) {
-        int ch = getchar();
+    // Detect names that exceed the input buffer
+    if (customerName[length] != '\n' && !feof(stdin)) {
+        ch = getchar();
 
         if (ch != '\n' && ch != EOF) {
             while (ch != '\n' && ch != EOF) {
@@ -59,21 +61,63 @@ int getCustomerName(char customerName[]) {
         }
     }
 
+    customerName[length] = '\0';
+
+    // Reject empty names and names containing only whitespace
+    if (customerName[0] == '\0' ||
+        strspn(customerName, " \t\r") == strlen(customerName)) {
+        printf("Customer name cannot be empty.\n");
+        return 0;
+    }
+
     return 1;
 }
 
 // Reads and validates the number of tickets
 int getTicketCount(int *tickets) {
-    printf("Enter number of tickets (1-20): ");
+    char input[100];
+    char *end;
+    long value;
 
-    if (scanf("%d", tickets) != 1 ||
-        *tickets < MIN_TICKETS ||
-        *tickets > MAX_TICKETS) {
-        printf("Invalid number of tickets.\n");
-        return 0;
+    while (1) {
+        printf("Enter number of tickets (1-20): ");
+
+        if (fgets(input, sizeof(input), stdin) == NULL) {
+            printf("Unable to read ticket count.\n");
+            return 0;
+        }
+
+        // Reject input lines that exceed the buffer
+        if (strchr(input, '\n') == NULL && !feof(stdin)) {
+            int ch;
+
+            while ((ch = getchar()) != '\n' && ch != EOF) {
+                // Discard the remaining input
+            }
+
+            printf("Invalid input. Please enter an integer between 1 and 20.\n");
+            continue;
+        }
+
+        errno = 0;
+        value = strtol(input, &end, 10);
+
+        // Skip trailing whitespace
+        while (isspace((unsigned char)*end)) {
+            end++;
+        }
+
+        if (end == input || *end != '\0' ||
+            errno == ERANGE ||
+            value < MIN_TICKETS ||
+            value > MAX_TICKETS) {
+            printf("Invalid number of tickets. Please enter an integer between 1 and 20.\n");
+            continue;
+        }
+
+        *tickets = (int)value;
+        return 1;
     }
-
-    return 1;
 }
 
 // Displays available ticket categories
@@ -86,24 +130,49 @@ void displayTicketCategories(void) {
 
 // Reads and validates the ticket category
 int getTicketCategory(enum TicketCategory *category) {
-    int choice;
+    char input[100];
+    char *end;
+    long choice;
 
     displayTicketCategories();
 
-    printf("Enter ticket category: ");
+    while (1) {
+        printf("Enter ticket category (1-3): ");
 
-    if (scanf("%d", &choice) != 1) {
-        printf("Invalid ticket category.\n");
-        return 0;
+        if (fgets(input, sizeof(input), stdin) == NULL) {
+            printf("Unable to read ticket category.\n");
+            return 0;
+        }
+
+        // Reject input lines that exceed the buffer
+        if (strchr(input, '\n') == NULL && !feof(stdin)) {
+            int ch;
+
+            while ((ch = getchar()) != '\n' && ch != EOF) {
+                // Discard the remaining input
+            }
+
+            printf("Invalid ticket category.\n");
+            continue;
+        }
+
+        errno = 0;
+        choice = strtol(input, &end, 10);
+
+        while (isspace((unsigned char)*end)) {
+            end++;
+        }
+
+        if (end == input || *end != '\0' ||
+            errno == ERANGE ||
+            choice < STANDARD || choice > RECLINER) {
+            printf("Invalid ticket category. Please choose 1, 2, or 3.\n");
+            continue;
+        }
+
+        *category = (enum TicketCategory)choice;
+        return 1;
     }
-
-    if (choice < STANDARD || choice > RECLINER) {
-        printf("Invalid ticket category.\n");
-        return 0;
-    }
-
-    *category = (enum TicketCategory)choice;
-    return 1;
 }
 
 // Gets the price and name for the selected category
