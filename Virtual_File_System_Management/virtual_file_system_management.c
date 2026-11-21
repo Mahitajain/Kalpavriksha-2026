@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
+
+#include "virtual_file_system_management.h"
 
 #define BLOCK_SIZE 512
 #define TOTAL_BLOCK_COUNT 1024
@@ -19,7 +22,7 @@ typedef struct FreeBlock {
 
 typedef struct FileNode {
     char name[MAX_NAME_LENGTH + 1];
-    int isDirectory;
+    bool isDirectory;
     struct FileNode *parent;
     struct FileNode *nextSibling;
     struct FileNode *previousSibling;
@@ -38,11 +41,11 @@ static FileNode *root = NULL;
 static FileNode *currentDirectory = NULL;
 
 
-static void appendFreeBlock(int blockIndex) {
+static bool appendFreeBlock(int blockIndex) {
     FreeBlock *freeBlock = malloc(sizeof(FreeBlock));
     if (!freeBlock) {
         perror("malloc");
-        exit(1);
+        return false;
     }
 
     freeBlock->blockIndex = blockIndex;
@@ -55,6 +58,7 @@ static void appendFreeBlock(int blockIndex) {
     }
     freeBlockTail = freeBlock;
     freeBlockCount++;
+    return true;
 }
 
 static int takeFreeBlock(void) {
@@ -72,13 +76,14 @@ static int takeFreeBlock(void) {
 }
 
 
-static FileNode *createNode(const char *name, int isDirectory, FileNode *parent) {
+static FileNode *createNode(const char *name, bool isDirectory, FileNode *parent) {
     FileNode *node = calloc(1, sizeof(FileNode));
     if (!node) {
         perror("calloc");
-        exit(1);
+        return NULL;
     }
     strncpy(node->name, name, MAX_NAME_LENGTH);
+    node->name[MAX_NAME_LENGTH] = '\0';
     node->isDirectory = isDirectory;
     node->parent = parent;
     return node;
@@ -127,15 +132,19 @@ static void removeChild(FileNode *directory, FileNode *node) {
     node->previousSibling = NULL;
 }
 
-static void releaseFileBlocks(FileNode *file) {
+static bool releaseFileBlocks(FileNode *file) {
+    bool released = true;
     for (int index = 0; index < file->blockCount; index++) {
         memset(virtualDisk[file->blockPointers[index]], 0, BLOCK_SIZE);
-        appendFreeBlock(file->blockPointers[index]);
+        if (!appendFreeBlock(file->blockPointers[index])) {
+            released = false;
+        }
     }
     free(file->blockPointers);
     file->blockPointers = NULL;
     file->blockCount = 0;
     file->fileSize = 0;
+    return released;
 }
 
 static void destroyFileTree(FileNode *node) {
@@ -190,7 +199,11 @@ static void createDirectory(const char *name) {
         printf("Error: '%s' already exists.\n", name);
         return;
     }
-    addChild(currentDirectory, createNode(name, 1, currentDirectory));
+    FileNode *directory = createNode(name, true, currentDirectory);
+    if (!directory) {
+        return;
+    }
+    addChild(currentDirectory, directory);
     printf("Directory '%s' created successfully.\n", name);
 }
 
@@ -202,7 +215,11 @@ static void createFile(const char *name) {
         printf("Error: '%s' already exists.\n", name);
         return;
     }
-    addChild(currentDirectory, createNode(name, 0, currentDirectory));
+    FileNode *file = createNode(name, false, currentDirectory);
+    if (!file) {
+        return;
+    }
+    addChild(currentDirectory, file);
     printf("File '%s' created successfully.\n", name);
 }
 
@@ -228,16 +245,19 @@ static void writeFileContents(const char *name, const char *contents) {
                requiredBlockCount, freeBlockCount + file->blockCount);
         return;
     }
-    releaseFileBlocks(file);
-
-    file->blockPointers = malloc(sizeof(int) * requiredBlockCount);
-    if (!file->blockPointers) {
+    int *blockPointers = malloc(sizeof(int) * requiredBlockCount);
+    if (!blockPointers) {
         perror("malloc");
-        exit(1);
+        return;
+    }
+    if (!releaseFileBlocks(file)) {
+        free(blockPointers);
+        printf("Error: unable to update file data.\n");
+        return;
     }
     for (int index = 0; index < requiredBlockCount; index++) {
         int blockIndex = takeFreeBlock();
-        file->blockPointers[index] = blockIndex;
+        blockPointers[index] = blockIndex;
         int chunkLength = contentsLength - index * BLOCK_SIZE;
         if (chunkLength > BLOCK_SIZE) {
             chunkLength = BLOCK_SIZE;
@@ -246,6 +266,7 @@ static void writeFileContents(const char *name, const char *contents) {
             memcpy(virtualDisk[blockIndex], contents + index * BLOCK_SIZE, chunkLength);
         }
     }
+    file->blockPointers = blockPointers;
     file->blockCount = requiredBlockCount;
     file->fileSize = contentsLength;
     printf("Data written successfully (size=%d bytes).\n", contentsLength);
@@ -373,44 +394,87 @@ static char *parseWriteData(char *input) {
     return input;
 }
 
-void executeCommand(char *commandLine) {
+static bool isKnownCommand(const char *command) {
+    return strcmp(command, "exit") == 0 ||
+           strcmp(command, "ls") == 0 ||
+           strcmp(command, "pwd") == 0 ||
+           strcmp(command, "df") == 0 ||
+           strcmp(command, "write") == 0 ||
+           strcmp(command, "mkdir") == 0 ||
+           strcmp(command, "create") == 0 ||
+           strcmp(command, "read") == 0 ||
+           strcmp(command, "delete") == 0 ||
+           strcmp(command, "rmdir") == 0 ||
+           strcmp(command, "cd") == 0;
+}
+
+bool executeCommand(char *commandLine) {
     char *command = strtok(commandLine, " \t");
 
     if (command == NULL) {
-        return;
+        return true;
+    }
+
+    if (!isKnownCommand(command)) {
+        printf("Unknown command: %s\n", command);
+        return true;
     }
 
     if (strcmp(command, "exit") == 0) {
-        return;
+        char *extraArgument = strtok(NULL, " \t");
+        if (extraArgument != NULL) {
+            printf("Usage: exit\n");
+            return true;
+        }
+        return false;
     } 
     else if (strcmp(command, "ls") == 0) {
+        if (strtok(NULL, " \t") != NULL) {
+            printf("Usage: ls\n");
+            return true;
+        }
         listDirectoryContents();
+        return true;
     } 
     else if (strcmp(command, "pwd") == 0) {
+        if (strtok(NULL, " \t") != NULL) {
+            printf("Usage: pwd\n");
+            return true;
+        }
         printWorkingDirectory();
+        return true;
     } 
     
     else if (strcmp(command, "df") == 0) {
+        if (strtok(NULL, " \t") != NULL) {
+            printf("Usage: df\n");
+            return true;
+        }
         printDiskUsage();
+        return true;
     } 
     else if (strcmp(command, "write") == 0) {
         char *fileName = strtok(NULL, " \t");
 
         if (fileName == NULL) {
             printf("Usage: write <file> \"content\"\n");
-            return;
+            return true;
         }
 
         char *remainingArguments = strtok(NULL, "");
         writeFileContents(fileName,remainingArguments ? parseWriteData(remainingArguments) : "");
-        return;
+        return true;
     }
 
     char *argument = strtok(NULL, " \t");
 
     if (argument == NULL) {
         printf("Usage: %s <name>\n", command);
-        return;
+        return true;
+    }
+    if (strtok(NULL, " \t") != NULL) {
+        printf("Usage: %s <name>\n", command);
+        return true;
     }
 
     if (strcmp(command, "mkdir") == 0) {
@@ -430,18 +494,29 @@ void executeCommand(char *commandLine) {
     } 
     else if (strcmp(command, "cd") == 0) {
         changeDirectory(argument);
-    } 
-    else {
-        printf("Unknown command: %s\n", command);
     }
+    return true;
 }
 
 int main() {
     for (int index = 0; index < TOTAL_BLOCK_COUNT; index++) {
-        appendFreeBlock(index);
+        if (!appendFreeBlock(index)) {
+            printf("Error: unable to initialize the virtual disk.\n");
+            while (freeBlockHead != NULL) {
+                takeFreeBlock();
+            }
+            return 1;
+        }
     }
 
-    root = createNode("/", 1, NULL);
+    root = createNode("/", true, NULL);
+    if (!root) {
+        printf("Error: unable to initialize the file system.\n");
+        while (freeBlockHead != NULL) {
+            takeFreeBlock();
+        }
+        return 1;
+    }
     currentDirectory = root;
 
     printf("Compact VFS - ready. Type 'exit' to quit.\n");
@@ -461,9 +536,7 @@ int main() {
 
         commandLine[strcspn(commandLine, "\r\n")] = '\0';
 
-        executeCommand(commandLine);
-
-        if (strcmp(commandLine, "exit") == 0) {
+        if (!executeCommand(commandLine)) {
             break;
         }
     }
