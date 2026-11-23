@@ -38,7 +38,7 @@ typedef struct {
     int totalPlayers;
     float averageBattingStrikeRate;
     double totalBattingStrikeRate;
-    int strikeRatePlayeCount;
+    int strikeRatePlayerCount;
     ODIPlayer *firstTeamPlayer, *lastTeamPlayer;
     ODIPlayer *firstPlayerByRole[3];
 }Team;
@@ -106,8 +106,8 @@ static Team *searchTeamByName(const char *team_name){
 }
 
 static void upadateAverageBattingStrikeRate(Team *teamRecord){
-    if(teamRecord -> strikeRatePlayeCount > 0){
-        teamRecord -> averageBattingStrikeRate = (float) (teamRecord->totalBattingStrikeRate / teamRecord -> strikeRatePlayeCount);
+    if(teamRecord -> strikeRatePlayerCount > 0){
+        teamRecord -> averageBattingStrikeRate = (float) (teamRecord->totalBattingStrikeRate / teamRecord -> strikeRatePlayerCount);
     }
     else{
         teamRecord -> averageBattingStrikeRate = 0.0f;
@@ -136,7 +136,7 @@ static void insertPlayerIntoTeam(Team *teamRecord , ODIPlayer * player){
     teamRecord -> totalPlayers++;
     if(player -> role == BATSMAN || player-> role == ALLROUNDER){
         teamRecord -> totalBattingStrikeRate += player->strikeRate;
-        teamRecord -> strikeRatePlayeCount++;
+        teamRecord -> strikeRatePlayerCount++;
         upadateAverageBattingStrikeRate(teamRecord);
     }
 }
