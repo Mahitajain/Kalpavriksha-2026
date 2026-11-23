@@ -148,8 +148,8 @@ static ODIPlayer *createPlayerRecord(int playerID, const char* playerName, const
         exit(1);
     }
     player->playerID = playerID;
-    strncpy(player->name ,playerName , MAX_NAME);
-    strncpy(player->team_name,team_name, MAX_NAME);
+    snprintf(player->name, sizeof(player->name), "%s", playerName);
+    snprintf(player->team_name, sizeof(player->team_name), "%s", team_name);
     player->role = playerRole;
     player->totalRuns = totalRuns;
     player->battingAverage = battingAverage;
@@ -167,7 +167,7 @@ static void initializePlayerAndTeamData(){
     for(int index = 0 ; index < numberOfTeams ; index++){
         memset(&teamList[index] , 0, sizeof(Team));
         teamList[index].teamId = index + 1;
-        strncpy(teamList[index].name , teams[index] , MAX_NAME);
+        snprintf(teamList[index].name, MAX_NAME, "%s", teams[index]);
     }
     for(int index = 0 ;index < playerCount ;index++){
         const Player *sourcePlayer = &players[index];
@@ -177,6 +177,7 @@ static void initializePlayerAndTeamData(){
             printf("Warning : skipped invalid recoed for '%s'\n" , sourcePlayer -> name);
             continue;
         }
+
         if(sourcePlayer -> id< 1 || sourcePlayer-> id >= ID_TABLE_SIZE || playerIdExists[sourcePlayer->id]){
             printf("Warning: skipped '%s' (invalid/duplicate id) %d \n" , sourcePlayer-> name , sourcePlayer->id);
             continue;
@@ -263,8 +264,7 @@ static int readFloatInput(const char *prompt, float *parsedValue)
 static int readPlayerRole(Role *parsedValue)
 {
     int selectedRoleNumber;
-    if (!readIntegerInput("Role (1-Batsman, 2-Bowler, 3-All-rounder): ", &selectedRoleNumber)
-        || selectedRoleNumber < 1 || selectedRoleNumber > 3) {
+    if (!readIntegerInput("Role (1-Batsman, 2-Bowler, 3-All-rounder): ", &selectedRoleNumber) || selectedRoleNumber < 1 || selectedRoleNumber > 3) {
         printf("Invalid role.\n");
         return 0;
     }
@@ -353,7 +353,7 @@ static void displayPlayersOfTeam(void)
     printf("Players of Team %s:\n", teamRecord->name);
     printPlayerTableHeader(0);
     for (ODIPlayer *player = teamRecord->firstTeamPlayer; player; player = player->nextTeamPlayer){
-            printPlayerDetails(player, 0);
+        printPlayerDetails(player, 0);
     }
     printSeparatorLine('=', 96);
     printf("Total Players: %d\n", teamRecord->totalPlayers);
@@ -451,7 +451,7 @@ static void restoreMaxHeapOrder(ODIPlayer **playerHeap, int elementCount, int in
     }
 }
 
-static void displayPlayersByRoleAcrossTeams(void)
+static void displayPlayersByRoleAcrossTeams()
 {
     Role role;
     if (!readPlayerRole(&role)) return;
